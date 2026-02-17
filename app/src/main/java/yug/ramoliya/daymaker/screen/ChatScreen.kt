@@ -6,18 +6,33 @@ import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -26,6 +41,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import yug.ramoliya.daymaker.constants.Constants
+import yug.ramoliya.daymaker.screen.ChatTopBar
+import yug.ramoliya.daymaker.ui.theme.GradientPink
+import yug.ramoliya.daymaker.ui.theme.GradientPurple
+import yug.ramoliya.daymaker.ui.theme.GradientViolet
 import yug.ramoliya.daymaker.viewmodel.ChatViewModel
 import java.io.File
 
@@ -212,22 +231,29 @@ fun ChatScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = "Private Chat",
-                    style = MaterialTheme.typography.titleMedium
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        GradientPurple,
+                        GradientPink,
+                        GradientViolet
+                    )
                 )
-
-                OnlineStatus(status = otherUserStatus)
-            }
-        },
-        bottomBar = {
+            )
+    ) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            topBar = {
+                ChatTopBar(
+                    otherUserName = Constants.OTHER_USER_ID,
+                    status = otherUserStatus
+                )
+            },
+            bottomBar = {
             Column {
                 TypingIndicator(isTyping = isTyping)
 
@@ -240,49 +266,50 @@ fun ChatScreen(
                     }
                 )
             }
-        }
-    ) { padding ->
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-
-            if (loading) {
-                CenterLoader()
             }
+        ) { padding ->
 
-            LazyColumn(
-                state = listState,
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 8.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                    .padding(padding)
             ) {
-                items(messages, key = { it.messageId }) { message ->
-                    MessageBubble(
-                        message = message,
-                        onMediaClick = { url, type ->
-                            fullScreenMediaUrl = url
-                            fullScreenMediaType = type
-                        }
-                    )
+
+                if (loading) {
+                    CenterLoader()
+                }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 8.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(messages, key = { it.messageId }) { message ->
+                        MessageBubble(
+                            message = message,
+                            onMediaClick = { url, type ->
+                                fullScreenMediaUrl = url
+                                fullScreenMediaType = type
+                            }
+                        )
+                    }
                 }
             }
         }
-    }
 
-    // Full Screen Media Viewer - Must be outside Scaffold to overlay everything
-    if (fullScreenMediaUrl != null && fullScreenMediaType != null) {
-        FullScreenMediaViewer(
-            mediaUrl = fullScreenMediaUrl!!,
-            mediaType = fullScreenMediaType!!,
-            onDismiss = {
-                fullScreenMediaUrl = null
-                fullScreenMediaType = null
-            }
-        )
+        // Full Screen Media Viewer - Must be outside Scaffold to overlay everything
+        if (fullScreenMediaUrl != null && fullScreenMediaType != null) {
+            FullScreenMediaViewer(
+                mediaUrl = fullScreenMediaUrl!!,
+                mediaType = fullScreenMediaType!!,
+                onDismiss = {
+                    fullScreenMediaUrl = null
+                    fullScreenMediaType = null
+                }
+            )
+        }
     }
 }
 
