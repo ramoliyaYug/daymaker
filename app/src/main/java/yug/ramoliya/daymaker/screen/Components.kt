@@ -40,50 +40,76 @@ fun ChatInputBar(
     Surface(
         modifier = modifier
             .fillMaxWidth(),
-        shadowElevation = 4.dp,
-        color = MaterialTheme.colorScheme.surface
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
             // Attach Button
-            IconButton(onClick = onAttachClick) {
+            IconButton(
+                onClick = onAttachClick,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
                 Icon(
                     imageVector = Icons.Default.AttachFile,
                     contentDescription = "Attach media",
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             // Text Field
             OutlinedTextField(
                 value = text,
                 onValueChange = onTextChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 4.dp),
-                placeholder = { Text("Type a message...") },
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.weight(1f),
+                placeholder = { 
+                    Text(
+                        "Type a message...",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    ) 
+                },
+                shape = RoundedCornerShape(28.dp),
                 maxLines = 4,
-                singleLine = false
+                singleLine = false,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             )
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             // Send Button
             IconButton(
                 onClick = onSendClick,
-                enabled = text.isNotBlank()
+                enabled = text.isNotBlank(),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = if (text.isNotBlank())
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (text.isNotBlank())
+                        MaterialTheme.colorScheme.onPrimary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
             ) {
                 Icon(
                     imageVector = Icons.Default.Send,
                     contentDescription = "Send message",
-                    tint = if (text.isNotBlank())
-                        MaterialTheme.colorScheme.primary
-                    else
-                        Color.Gray
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

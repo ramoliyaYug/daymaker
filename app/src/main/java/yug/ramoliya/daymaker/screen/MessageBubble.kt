@@ -7,12 +7,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,7 +37,8 @@ import yug.ramoliya.daymaker.data.MessageModel
 @Composable
 fun MessageBubble(
     message: MessageModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMediaClick: (String, String) -> Unit = { _, _ -> }
 ) {
 
     val isMe = message.senderId == CURRENT_USER_ID
@@ -38,9 +46,12 @@ fun MessageBubble(
     val bubbleColor = if (isMe)
         MaterialTheme.colorScheme.primary
     else
-        MaterialTheme.colorScheme.surfaceVariant
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
 
-    val textColor = if (isMe) Color.White else Color.Black
+    val textColor = if (isMe) 
+        MaterialTheme.colorScheme.onPrimary 
+    else 
+        MaterialTheme.colorScheme.onSurfaceVariant
 
     Row(
         modifier = modifier
@@ -81,7 +92,10 @@ fun MessageBubble(
                         contentDescription = "image",
                         modifier = Modifier
                             .size(180.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                onMediaClick(message.mediaUrl, Constants.TYPE_IMAGE)
+                            },
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
                 }
@@ -89,7 +103,8 @@ fun MessageBubble(
                 Constants.TYPE_VIDEO -> {
                     VideoMessageBubble(
                         videoUrl = message.mediaUrl,
-                        textColor = textColor
+                        textColor = textColor,
+                        onVideoClick = { onMediaClick(message.mediaUrl, Constants.TYPE_VIDEO) }
                     )
                 }
 
@@ -138,7 +153,8 @@ fun MessageBubble(
 fun VideoMessageBubble(
     videoUrl: String,
     textColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onVideoClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -148,23 +164,7 @@ fun VideoMessageBubble(
             .clip(RoundedCornerShape(12.dp))
             .background(Color.Black.copy(alpha = 0.3f))
             .clickable {
-                try {
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(videoUrl)
-                        setDataAndType(Uri.parse(videoUrl), "video/*")
-                    }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    // Fallback: try opening with any app
-                    val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(videoUrl)
-                    }
-                    try {
-                        context.startActivity(fallbackIntent)
-                    } catch (ex: Exception) {
-                        // Silently fail - user will see UI but won't be able to open
-                    }
-                }
+                onVideoClick()
             },
         contentAlignment = Alignment.Center
     ) {
@@ -195,6 +195,28 @@ fun AudioMessageBubble(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var isPlaying by remember { mutableStateOf(false) }
+    var audioPlayer by remember { mutableStateOf<androidx.media3.exoplayer.ExoPlayer?>(null) }
+
+    LaunchedEffect(audioUrl) {
+        audioPlayer = androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            val mediaItem = androidx.media3.common.MediaItem.fromUri(android.net.Uri.parse(audioUrl))
+            setMediaItem(mediaItem)
+            prepare()
+            
+            addListener(object : androidx.media3.common.Player.Listener {
+                override fun onIsPlayingChanged(isPlayingNow: Boolean) {
+                    isPlaying = isPlayingNow
+                }
+            })
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            audioPlayer?.release()
+        }
+    }
 
     Row(
         modifier = modifier
@@ -207,36 +229,28 @@ fun AudioMessageBubble(
     ) {
         IconButton(
             onClick = {
-                try {
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(audioUrl)
-                        setDataAndType(Uri.parse(audioUrl), "audio/*")
-                    }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    // Fallback
-                    val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse(audioUrl)
-                    }
-                    try {
-                        context.startActivity(fallbackIntent)
-                    } catch (ex: Exception) {
-                        // Silently fail
+                audioPlayer?.let { player ->
+                    if (isPlaying) {
+                        player.pause()
+                        isPlaying = false
+                    } else {
+                        player.play()
+                        isPlaying = true
                     }
                 }
             },
             modifier = Modifier.size(40.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Play audio",
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "Pause audio" else "Play audio",
                 tint = Color.White,
                 modifier = Modifier.size(24.dp)
             )
         }
 
         Text(
-            text = "Audio",
+            text = if (isPlaying) "Playing..." else "Audio",
             color = textColor,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium

@@ -1,7 +1,8 @@
 package yug.ramoliya.daymaker.viewmodel
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,14 +15,16 @@ import yug.ramoliya.daymaker.constants.generateMessageId
 import yug.ramoliya.daymaker.data.FirebaseRepository
 import yug.ramoliya.daymaker.data.GithubRepository
 import yug.ramoliya.daymaker.data.MessageModel
+import yug.ramoliya.daymaker.service.NotificationService
 import java.io.File
 
 private const val TAG = "ChatViewModel"
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val firebaseRepo = FirebaseRepository()
     private val githubRepo = GithubRepository()
+    private val notificationService = NotificationService(application)
 
     // ---------- UI STATE ----------
 
@@ -202,7 +205,30 @@ class ChatViewModel : ViewModel() {
     private fun observeMessages() {
         viewModelScope.launch {
             firebaseRepo.listenMessages().collect { list ->
+                val previousMessages = _messages.value
                 _messages.value = list
+                
+                // Show notification for new messages when app is in background
+                if (previousMessages.isNotEmpty() && list.size > previousMessages.size) {
+                    val newMessages = list.filter { newMsg ->
+                        !previousMessages.any { it.messageId == newMsg.messageId } &&
+                        newMsg.senderId != Constants.CURRENT_USER_ID
+                    }
+                    
+                    newMessages.forEach { message ->
+                        val messageText = when (message.type) {
+                            Constants.TYPE_TEXT -> message.text
+                            Constants.TYPE_IMAGE -> "📷 Image"
+                            Constants.TYPE_VIDEO -> "🎥 Video"
+                            Constants.TYPE_AUDIO -> "🎤 Voice message"
+                            else -> "New message"
+                        }
+                        notificationService.showNotification(
+                            messageText = messageText,
+                            senderName = Constants.OTHER_USER_ID
+                        )
+                    }
+                }
             }
         }
     }
