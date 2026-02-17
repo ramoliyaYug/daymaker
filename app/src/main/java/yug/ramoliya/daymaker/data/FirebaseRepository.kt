@@ -45,41 +45,74 @@ class FirebaseRepository {
             }
     }
 
-    // ---------- LISTEN MESSAGES ----------
-    fun listenMessages(): Flow<List<MessageModel>> = callbackFlow {
+    // ---------- LISTEN RECENT MESSAGES (PAGINATED) ----------
+    /**
+     * Listen to the most recent [limit] messages and keep them live-updated.
+     * This does NOT load the entire history, only a window from the bottom.
+     */
+    fun listenRecentMessages(limit: Int = 10): Flow<List<MessageModel>> = callbackFlow {
 
-//        Log.d(TAG, "Setting up message listener on path: ${messagesRef.path}")
+        val query = messagesRef
+            .orderByChild("timestamp")
+            .limitToLast(limit)
 
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                Log.d(TAG, "Data changed, snapshot exists: ${snapshot.exists()}, children count: ${snapshot.childrenCount}")
                 val list = mutableListOf<MessageModel>()
 
                 for (child in snapshot.children) {
                     val msg = child.getValue(MessageModel::class.java)
                     if (msg != null) {
                         list.add(msg)
-                        Log.d(TAG, "Loaded message: ${msg.messageId}")
-                    } else {
-                        Log.w(TAG, "Failed to parse message from snapshot: ${child.key}")
                     }
                 }
 
-                Log.d(TAG, "Total messages loaded: ${list.size}")
                 trySend(list.sortedBy { it.timestamp })
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Message listener cancelled: ${error.message}, code: ${error.code}, details: ${error.details}")
                 close(error.toException())
             }
         }
 
-        messagesRef.addValueEventListener(listener)
+        query.addValueEventListener(listener)
 
         awaitClose {
-            Log.d(TAG, "Removing message listener")
             messagesRef.removeEventListener(listener)
+        }
+    }
+
+    /**
+     * Load older messages once, before the given [beforeTimestamp].
+     * Returns at most [limit] older messages (sorted oldest -> newest).
+     */
+    suspend fun loadOlderMessages(beforeTimestamp: Long, limit: Int = 10): List<MessageModel> {
+        return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            val query = messagesRef
+                .orderByChild("timestamp")
+                .endAt((beforeTimestamp - 1).toDouble())
+                .limitToLast(limit)
+
+            query.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val list = mutableListOf<MessageModel>()
+                    for (child in snapshot.children) {
+                        val msg = child.getValue(MessageModel::class.java)
+                        if (msg != null) {
+                            list.add(msg)
+                        }
+                    }
+                    if (cont.isActive) {
+                        cont.resume(list.sortedBy { it.timestamp }, null)
+                    }
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    if (cont.isActive) {
+                        cont.resume(emptyList(), null)
+                    }
+                }
+            })
         }
     }
 
